@@ -1,7 +1,11 @@
 {
-  "project": "tinyxml",
-  "version": "1.1",
+  "project": "NanoCanvas",
+  "version": "1.0",
   "author": "Geequlim",
   "logo": "",
-  "source_dir": "../include"
+  "source_dir": "../cocos2d-x-3.12/cocos/2d",
+  "ignore": {
+    "classes": [],
+    "functions": []
+  }
 }
