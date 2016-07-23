@@ -2,12 +2,23 @@
 # -*- coding: utf-8 -*-
 import fnmatch
 import os
-import sys
-import xml.etree.ElementTree as ET
 import json
+from breathe import parser
+
+doxyxmldir = "_build{0}doxygen{0}xml".format(os.sep)
 
 
-def genDoxygen(meta):
+
+def globPath(path, pattern):
+    result = []
+    for root, subdirs, files in os.walk(path):
+        for filename in files:
+            if fnmatch.fnmatch(filename, pattern):
+                result.append(os.path.join(root, filename))
+    return result
+
+
+def runDoxygen(meta):
     print("========== Generating doxygen xml ============")
     if not os.path.isdir("prebuild"):
         os.makedirs("prebuild")
@@ -21,46 +32,59 @@ def genDoxygen(meta):
     os.system("doxygen prebuild/doxygen.cfg")
 
 
-def globPath(path, pattern):
-    result = []
-    for root, subdirs, files in os.walk(path):
-        for filename in files:
-            if fnmatch.fnmatch(filename, pattern):
-                result.append(os.path.join(root, filename))
-    return result
+def parseDoxygen():
+    print("========== Parsing symbols ============")
+    index = None
+    compounds = []
+    for xml in globPath(doxyxmldir, "*.xml"):
+        print("parsing {}".format(xml))
+        if xml.endswith("index.xml"):
+            global index
+            index = parser.index.parse(xml)
+        else:
+            compounds.append(parser.compound.parse(xml))
+
+    symbols = {}
+    for c in compounds:
+        for section in c.compounddef.sectiondef:
+            kind = section.kind
+            members = []
+            for member in section.memberdef:
+                members.append(member)
+            if kind not in symbols:
+                symbols[kind] = members
+            else:
+                symbols[kind] += members
+    print("finished...")
+    return index, symbols
 
 
-def genClasses():
+def genClasses(index, symbols, meta):
     print("========== Generating classes ============")
+
     apirst = ""
-    classfiles = globPath("_build/doxygen/xml", "class*.xml")
-    classfiles += globPath("_build/doxygen/xml", "struct*.xml")
     classtmp = open("_templates/class.rst").read()
+
     apirst += "Classes\r\n"
     apirst += "-------\r\n"
     classes = []
-    for f in classfiles:
-        try:
-            root = ET.parse(f).getroot()
-            name = root.find("compounddef/compoundname").text
-            if "<" in name:
-                continue
-            if "ignore" in meta and "classes" in meta["ignore"]:
-                if name in meta["ignore"]["classes"]:
-                    continue
-            classes.append((name, f.startswith("_build/doxygen/xml/struct")))
-        except Exception as e:
-            print(e)
+    for c in index.compound:
+        if c.kind in ["class", "struct"]:
+            classes.append((c.name, c.kind))
     classes.sort()
+
+
     for c in classes:
         name = c[0]
+        type = c[1]
+        if name in meta["ignore"]["classes"] or "<" in name:
+            continue
         print(name)
-        typename = c[1] and "struct" or "class"
         if not os.path.isdir("prebuild/api/classes"):
             os.makedirs("prebuild/api/classes")
         classrst = classtmp.replace("${class}", name)
-        classrst = classrst.replace("${type}", typename)
-        filename = ("prebuild/api/classes/{}.rst".format(name.replace("::", "_").lower()))
+        classrst = classrst.replace("${type}", type)
+        filename = "prebuild/api/classes/{}.rst".format(name.replace("::", "_"))
         classrstf = open(filename, "w")
         classrstf.write(classrst)
         classrstf.close()
@@ -71,38 +95,52 @@ def genClasses():
     return apirst
 
 
-def genSymbols():
+def genSymbols(index, doxySymbols, meta):
     print("========== Generating other symbols ============")
     apirst = ""
-    root = ET.parse("_build/doxygen/xml/index.xml").getroot()
-    symbols = {
-        "define": [],
-        "enum": [],
-        "enumvalue": [],
-        "function": [],
-        "property": [],
-        "typedef": [],
-        "variable": [],
+    resovedCompounds = ["namespace", "group", "dir", "file", "module"]
+    resovedMembers = ["define", "enum", "function", "typedef", "variable", "union"]
+    aliasMap = {
+        "function": "func",
+        "variable": "var",
+        "enumvalue": "enum",
     }
-    for compound in root:
-        if compound.get("kind") in ["file", "namespace"]:
-            for m in compound:
-                if m.tag == "member":
-                    kind = m.get("kind")
-                    name = m.find("name").text
-                    symbols[kind].append(name)
+    symbols = {}
+    for c in index.compound:
+        kind = c.kind
+        if kind in resovedCompounds:
+            for m in c.member:
+                k = m.kind
+                if not symbols.has_key(k):
+                    symbols[k] = []
+                ak = k
+                if k in aliasMap:
+                    ak = aliasMap[k]
+                rawmember = None
+                for rm in doxySymbols[ak]:
+                    if rm.id == m.refid:
+                        rawmember = rm
+                        break
+                symbols[k].append((m.name, m, rawmember))
+
     for k in symbols:
+        if meta["with_symbols"].has_key(k) and not meta["with_symbols"][k]:
+            continue
         if len(symbols[k]) == 0:
             continue
-        print("{}s:".format(k))
         symbols[k].sort()
         apirst += "{}\r\n".format(k.capitalize())
         apirst += "-" * len(k) + "\r\n"
-        # if not os.path.isdir("prebuild/api/{}".format(k)):
-        #     os.makedirs("prebuild/api/{}".format(k))
-        for s in symbols[k]:
-            print("    {}".format(s))
-            apirst += ".. doxygen{}:: {}\r\n".format(k, s)
+        for pair in symbols[k]:
+            name = pair[0]
+            m = pair[1]
+            rawm = pair[2]
+            if k == "function" and rawm is not None:
+                name = rawm.definition.split(" ")[-1]
+                name += rawm.argsstring
+            if name in meta["ignore"]["symbols"]:
+                continue
+            apirst += ".. doxygen{}:: {}\r\n".format(k, name)
         apirst += "\r\n"
     print("finished...")
     return apirst
@@ -122,10 +160,12 @@ def genSphinxCfg(meta):
 
 if __name__ == '__main__':
     meta = json.load(open("doc.json"))
-    genDoxygen(meta)
+    runDoxygen(meta)
+    index, symbols = parseDoxygen()
+
     apirst = "API Reference\r\n=============\r\n\r\n"
-    apirst += genClasses()
-    apirst += genSymbols()
+    apirst += genClasses(index, symbols, meta)
+    apirst += genSymbols(index, symbols, meta)
     apirstf = open("prebuild/api.rst", "w")
     apirstf.write(apirst)
     apirstf.close()

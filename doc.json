@@ -1,11 +1,25 @@
 {
-  "project": "NanoCanvas",
+  "project": "Corrade",
   "version": "1.0",
-  "author": "Geequlim",
+  "author": "Corrade",
   "logo": "",
-  "source_dir": "../cocos2d-x-3.12/cocos/2d",
+  "source_dir": "test/Corrade",
+  "with_symbols": {
+    "function": false,
+    "enum": true,
+    "typedef": true,
+    "variable": true,
+    "enumvalue": false,
+    "define": true
+  },
   "ignore": {
-    "classes": [],
-    "functions": []
+    "classes": [
+      "Corrade::Utility::Debug",
+      "Corrade::Utility::Endianness"
+    ],
+    "symbols": [
+      "_c",
+      "ls"
+    ]
   }
 }
