@@ -1,25 +1,23 @@
 {
-  "project": "Corrade",
+  "project": "NanoCanvas",
   "version": "1.0",
-  "author": "Corrade",
+  "author": "NanoCanvas",
   "logo": "",
-  "source_dir": "test/Corrade",
+  "source_dir": "test/NanoCanvas",
+  "api_dir": "references/api",
+  "build_dir": "_build",
   "with_symbols": {
-    "function": false,
+    "function": true,
     "enum": true,
     "typedef": true,
     "variable": true,
     "enumvalue": false,
-    "define": true
+    "define": false
   },
   "ignore": {
     "classes": [
-      "Corrade::Utility::Debug",
-      "Corrade::Utility::Endianness"
     ],
     "symbols": [
-      "_c",
-      "ls"
     ]
   }
 }

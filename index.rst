@@ -1,17 +1,22 @@
 Welcome to uuii's documentation!
 ===============================
 
+The main documentation for the site is organized into a few sections:
+
+
+* :ref:`sec-reference`
+
 .. toctree::
-  :maxdepth: 2
+   :maxdepth: 1
+   :caption: API Reference
+   :name: sec-reference
+   :glob:
 
-  prebuild/api
+   references/api/_*
 
-
-Content
-========
-  * :ref:`genindex`
-  * :ref:`modindex`
-  * :ref:`search`
-
-
-.. doxygenfunction:: NanoCanvas::ColorConverter::clamp(double, double, double)
+.. Indices and tables
+.. ------------------
+..
+.. * :ref:`genindex`
+.. * :ref:`modindex`
+.. * :ref:`search`

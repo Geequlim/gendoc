@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 import fnmatch
 import os
+import sys
+import shutil
 import json
 from breathe import parser
-
-doxyxmldir = "_build{0}doxygen{0}xml".format(os.sep)
-
 
 
 def globPath(path, pattern):
@@ -18,31 +17,44 @@ def globPath(path, pattern):
     return result
 
 
+def rm(path):
+    if os.path.exists(path):
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
+
+
 def runDoxygen(meta):
     print("========== Generating doxygen xml ============")
-    if not os.path.isdir("prebuild"):
-        os.makedirs("prebuild")
-    content = open("_templates/doxygen.cfg").read()
+    doxyxmldir = os.path.join(meta["build_dir"], "doxygen", "xml")
+    if not os.path.isdir(doxyxmldir):
+        os.makedirs(doxyxmldir)
+    content = open("_templates{}doxyfile".format(os.sep)).read()
     for k in meta:
         if isinstance(meta[k], unicode) or isinstance(meta[k], str):
-            content = content.replace("${"+k+"}", meta[k])
-    f = open("prebuild/doxygen.cfg", "w")
+            content = content.replace("${" + k + "}", meta[k])
+    doxyfile = os.path.join(doxyxmldir, "..", "doxyfile")
+    f = open(doxyfile, "w")
     f.write(content)
     f.close()
-    os.system("doxygen prebuild/doxygen.cfg")
+    os.system("doxygen {}".format(doxyfile))
 
 
 def parseDoxygen():
     print("========== Parsing symbols ============")
     index = None
     compounds = []
+    doxyxmldir = os.path.join(meta["build_dir"], "doxygen", "xml")
     for xml in globPath(doxyxmldir, "*.xml"):
         print("parsing {}".format(xml))
         if xml.endswith("index.xml"):
-            global index
             index = parser.index.parse(xml)
         else:
-            compounds.append(parser.compound.parse(xml))
+            try:
+                compounds.append(parser.compound.parse(xml))
+            except Exception:
+                print("Error parsing: {}".format(xml))
 
     symbols = {}
     for c in compounds:
@@ -61,45 +73,37 @@ def parseDoxygen():
 
 def genClasses(index, symbols, meta):
     print("========== Generating classes ============")
-
-    apirst = ""
     classtmp = open("_templates/class.rst").read()
-
-    apirst += "Classes\r\n"
-    apirst += "-------\r\n"
     classes = []
     for c in index.compound:
         if c.kind in ["class", "struct"]:
             classes.append((c.name, c.kind))
     classes.sort()
-
-
     for c in classes:
         name = c[0]
         type = c[1]
         if name in meta["ignore"]["classes"] or "<" in name:
             continue
         print(name)
-        if not os.path.isdir("prebuild/api/classes"):
-            os.makedirs("prebuild/api/classes")
+        classdir = os.path.join(meta["api_dir"], "classes")
+        if not os.path.isdir(classdir):
+            os.makedirs(classdir)
         classrst = classtmp.replace("${class}", name)
         classrst = classrst.replace("${type}", type)
-        filename = "prebuild/api/classes/{}.rst".format(name.replace("::", "_"))
+        filename = os.path.join(classdir, name.replace("::", "_") + ".rst")
         classrstf = open(filename, "w")
         classrstf.write(classrst)
         classrstf.close()
-        line = ":cpp:class:`{}`".format(name)
-        apirst += line+"\r\n"
-        apirst += '~'*len(line)+"\r\n"
+    shutil.copyfile("_templates{}classes.rst".format(os.sep),
+                    os.path.join(meta["api_dir"], "_classes.rst"))
     print("finished...")
-    return apirst
 
 
 def genSymbols(index, doxySymbols, meta):
     print("========== Generating other symbols ============")
-    apirst = ""
     resovedCompounds = ["namespace", "group", "dir", "file", "module"]
-    resovedMembers = ["define", "enum", "function", "typedef", "variable", "union"]
+    resovedMembers = ["define", "enum",
+                      "function", "typedef", "variable", "union"]
     aliasMap = {
         "function": "func",
         "variable": "var",
@@ -129,8 +133,9 @@ def genSymbols(index, doxySymbols, meta):
         if len(symbols[k]) == 0:
             continue
         symbols[k].sort()
-        apirst += "{}\r\n".format(k.capitalize())
-        apirst += "-" * len(k) + "\r\n"
+        rstContent = ""
+        rstContent += "{}\r\n".format(k.capitalize())
+        rstContent += "-" * len(k) + "\r\n"
         for pair in symbols[k]:
             name = pair[0]
             m = pair[1]
@@ -138,35 +143,63 @@ def genSymbols(index, doxySymbols, meta):
             if k == "function" and rawm is not None:
                 name = rawm.definition.split(" ")[-1]
                 name += rawm.argsstring
+                if "set" in name:
+                    print m
             if name in meta["ignore"]["symbols"]:
                 continue
-            apirst += ".. doxygen{}:: {}\r\n".format(k, name)
-        apirst += "\r\n"
+            rstContent += ".. doxygen{}:: {}\r\n".format(k, name)
+        rstContent += "\r\n"
+        rst = open(os.path.join(meta["api_dir"], "_"+k+".rst"), "w")
+        rst.write(rstContent)
+        rst.close()
     print("finished...")
-    return apirst
+    return rstContent
 
 
-def genSphinxCfg(meta):
+def setupSphinx(meta):
     print("========== Generating conf.py ============")
-    content = open("_templates/conf.py").read()
-    for k in meta:
-        if isinstance(meta[k], unicode) or isinstance(meta[k], str):
-            content = content.replace("${"+k+"}", meta[k])
-    f = open("conf.py", "w")
-    f.write(content)
-    f.close()
+
+    def replaceContent(tmplt, target):
+        content = open(tmplt).read()
+        for k in meta:
+            if isinstance(meta[k], unicode) or isinstance(meta[k], str):
+                content = content.replace("${" + k + "}", meta[k])
+        f = open(target, "w")
+        f.write(content)
+        f.close()
+        print(target)
+    replaceContent("_templates/conf.py", "conf.py")
+    replaceContent("_templates/make.bat", "make.bat")
+    replaceContent("_templates/Makefile", "Makefile")
+    print("finished...")
+
+
+def actionClean(meta):
+    print("========== Clean generated files ============")
+
+    def rmpath(path):
+        rm(path)
+        print(path)
+    rmpath(meta["api_dir"])
+    rmpath(meta["build_dir"])
+    rmpath("conf.py")
+    rmpath("make.bat")
+    rmpath("Makefile")
     print("finished...")
 
 
 if __name__ == '__main__':
     meta = json.load(open("doc.json"))
-    runDoxygen(meta)
-    index, symbols = parseDoxygen()
+    if len(sys.argv) > 1:
+        param = sys.argv[1]
+        if param == "clean":
+            actionClean(meta)
+        else:
+            os.system("make {}".format(param))
+    else:
+        runDoxygen(meta)
+        index, symbols = parseDoxygen()
 
-    apirst = "API Reference\r\n=============\r\n\r\n"
-    apirst += genClasses(index, symbols, meta)
-    apirst += genSymbols(index, symbols, meta)
-    apirstf = open("prebuild/api.rst", "w")
-    apirstf.write(apirst)
-    apirstf.close()
-    genSphinxCfg(meta)
+        genClasses(index, symbols, meta)
+        genSymbols(index, symbols, meta)
+        setupSphinx(meta)

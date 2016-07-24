@@ -5,7 +5,7 @@
 SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
 PAPER         =
-BUILDDIR      = _build
+BUILDDIR      = ${build_dir}
 
 # Internal variables.
 PAPEROPT_a4     = -D latex_paper_size=a4
@@ -47,8 +47,6 @@ help:
 .PHONY: clean
 clean:
 	rm -rf $(BUILDDIR)/*
-	rm -rf $(BUILDDIR)/../prebuild
-	rm $(BUILDDIR)/../conf.py
 
 .PHONY: html
 html:
