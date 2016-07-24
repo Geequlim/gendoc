@@ -1,9 +1,9 @@
 {
-  "project": "NanoCanvas",
+  "project": "NativeDialog",
   "version": "1.0",
-  "author": "NanoCanvas",
+  "author": "NativeDialog",
   "logo": "",
-  "source_dir": "test/NanoCanvas",
+  "source_dir": "test/NativeDialog",
   "api_dir": "references/api",
   "build_dir": "_build",
   "with_symbols": {
