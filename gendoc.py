@@ -7,6 +7,23 @@ import shutil
 import json
 from breathe import parser
 
+helpContent = """\
+Generate documentations from your C/C++ code with Doxygen and Sphinx
+Usage:
+
+    python gendoc.py
+    Setup sphinx project for documentation
+
+    python gendoc.py [option]
+    Options:
+        -h/--help :  Show this help information
+        clean:    :  Remove all files generated
+        html      :  Generate html documents with Sphix
+        pdf       :  Generate html documents with Sphix
+        epub      :  Generate epub documents with Sphix
+        qthelp    :  Generate documents for QtCreator with Sphix
+"""
+
 
 def globPath(path, pattern):
     result = []
@@ -42,7 +59,7 @@ def runDoxygen(meta):
 
 
 def parseDoxygen():
-    print("========== Parsing symbols ============")
+    print("========== Parsing doxygen ============")
     index = None
     compounds = []
     doxyxmldir = os.path.join(meta["build_dir"], "doxygen", "xml")
@@ -132,10 +149,11 @@ def genSymbols(index, doxySymbols, meta):
             continue
         if len(symbols[k]) == 0:
             continue
+        print(k)
         symbols[k].sort()
         rstContent = ""
         rstContent += "{}\r\n".format(k.capitalize())
-        rstContent += "-" * len(k) + "\r\n"
+        rstContent += "=" * len(k) + "\r\n"
         for pair in symbols[k]:
             name = pair[0]
             m = pair[1]
@@ -148,8 +166,9 @@ def genSymbols(index, doxySymbols, meta):
             if name in meta["ignore"]["symbols"]:
                 continue
             rstContent += ".. doxygen{}:: {}\r\n".format(k, name)
+
         rstContent += "\r\n"
-        rst = open(os.path.join(meta["api_dir"], "_"+k+".rst"), "w")
+        rst = open(os.path.join(meta["api_dir"], "_" + k + ".rst"), "w")
         rst.write(rstContent)
         rst.close()
     print("finished...")
@@ -157,7 +176,7 @@ def genSymbols(index, doxySymbols, meta):
 
 
 def setupSphinx(meta):
-    print("========== Generating conf.py ============")
+    print("========== Setup Sphinx ============")
 
     def replaceContent(tmplt, target):
         content = open(tmplt).read()
@@ -194,6 +213,8 @@ if __name__ == '__main__':
         param = sys.argv[1]
         if param == "clean":
             actionClean(meta)
+        elif param in ["-h", "--help"]:
+            print(helpContent)
         else:
             os.system("make {}".format(param))
     else:

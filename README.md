@@ -21,6 +21,6 @@ pip install -r requirements.txt
 ### Usage
 1. Put the rep into a folder of your project.
 2. Edit the `doc.json` file to setup your project.
-3. Run `python ./prebuild.py` to genrate documentations with doxygen.
+3. Run `python gendoc.py` to genrate documentations with doxygen.
 4. Write other documentations with reStructruedText or Markdown with Sphinx workflow.
-5. Run `make` or `make.bat` to generate documentation with Sphinx
+5. Run `python gendoc.py html` to generate documentation with Sphinx
