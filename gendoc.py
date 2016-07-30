@@ -172,7 +172,6 @@ def genSymbols(index, doxySymbols, meta):
         rst.write(rstContent)
         rst.close()
     print("finished...")
-    return rstContent
 
 
 def setupSphinx(meta):
